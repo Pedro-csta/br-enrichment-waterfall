@@ -1,0 +1,15 @@
+empresa;cnpj;origem
+Magazine Luiza;47.960.950/0001-21;evento
+Natura;71673990000177;inbound
+Banco do Brasil;191;lista comprada
+Totvs;53.113.791/0001-22;inbound
+RD Station;13021784000186;evento
+iFood;14.380.200/0001-21;outbound
+Nu Pagamentos;18236120000158;inbound
+WEG;84.429.695/0001-11;outbound
+Embraer;07689002000189;outbound
+Localiza;16670085000155;evento
+Raia Drogasil;61.585.865/0001-51;inbound
+Ambev;7526557000100;lista comprada
+Natura (duplicado);71.673.990/0001-77;evento
+Empresa com CNPJ digitado errado;12.345.678/0001-00;inbound
