@@ -97,6 +97,35 @@ def parametros(handler):
     return {k: v[-1] for k, v in urllib.parse.parse_qs(consulta).items()}
 
 
+# ---------------------------------------------------------------- cidades
+def cidades_da_uf(uf, http=None):
+    """Cidades da UF com código IBGE: API oficial do IBGE, com a BrasilAPI de reserva."""
+    http = http or get_json_com_retry
+    uf = str(uf or "").strip().upper()[:2]
+    if len(uf) != 2 or not uf.isalpha():
+        return []
+    fontes = [
+        (f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{uf}/municipios", "nome", "id"),
+        (f"https://brasilapi.com.br/api/ibge/municipios/v1/{uf}?providers=gov", "nome", "codigo_ibge"),
+    ]
+    for url, campo_nome, campo_codigo in fontes:
+        status, dados = http(url)
+        if status != 200 or not isinstance(dados, list):
+            continue
+        cidades = [
+            {"nome": str(c.get(campo_nome) or "").strip(), "ibge": str(c.get(campo_codigo) or "")}
+            for c in dados
+        ]
+        cidades = [c for c in cidades if c["nome"] and c["ibge"].isdigit() and len(c["ibge"]) == 7]
+        # Descarta respostas quebradas (ex.: o mesmo nome repetido em todas as cidades).
+        if len(cidades) >= 2 and len({c["nome"] for c in cidades}) > len(cidades) // 2:
+            if cidades[0]["nome"].isupper():
+                for c in cidades:
+                    c["nome"] = c["nome"].title()
+            return sorted(cidades, key=lambda c: c["nome"])
+    return []
+
+
 # ------------------------------------------------------------ busca (ICP)
 PORTES = {"ME": 1, "EPP": 3, "DEMAIS": 5}
 
@@ -216,6 +245,7 @@ def buscar(filtros, cursor=None, quero=50, orcamento_s=22.0, limite=200, relogio
         for bruto in pagina:
             if passa_filtros(bruto, filtros):
                 empresas.append(resumo_empresa(bruto))
+        del empresas[quero:]  # o navegador para quando completa a quantidade pedida
         cursor = dados.get("cursor")
         if not cursor or not pagina:
             fim = True
