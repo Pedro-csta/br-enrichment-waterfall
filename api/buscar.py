@@ -17,16 +17,9 @@ class handler(BaseHTTPRequestHandler):
         p = _comum.parametros(self)
 
         if p.get("municipios"):
-            uf = p["municipios"].strip().upper()[:2]
-            status, dados = _comum.get_json_com_retry(
-                f"https://brasilapi.com.br/api/ibge/municipios/v1/{uf}?providers=dados-abertos-br,gov,wikipedia"
-            )
-            if status != 200 or not isinstance(dados, list):
+            cidades = _comum.cidades_da_uf(p["municipios"])
+            if not cidades:
                 return _comum.responder(self, 502, {"erro": "Não consegui carregar as cidades agora."})
-            cidades = sorted(
-                ({"nome": c.get("nome", "").title(), "ibge": str(c.get("codigo_ibge", ""))} for c in dados),
-                key=lambda c: c["nome"],
-            )
             return _comum.responder(self, 200, {"cidades": cidades})
 
         try:
