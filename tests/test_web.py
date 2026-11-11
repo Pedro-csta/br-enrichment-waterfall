@@ -27,7 +27,16 @@ MATRIZ = {
     "ddd_telefone_1": "6733455871", "opcao_pelo_mei": False, "situacao_cadastral": 2,
     "natureza_juridica": "Sociedade Empresária Limitada", "cnae_fiscal_descricao": "Desenvolvimento",
     "data_inicio_atividade": "2020-01-10", "identificador_matriz_filial": 1,
-    "descricao_situacao_cadastral": "ATIVA",
+    "descricao_situacao_cadastral": "ATIVA", "descricao_tipo_de_logradouro": "AVENIDA",
+    "logradouro": "PREFEITO OSMAR CUNHA", "numero": "416", "complemento": "SALA 1108", "bairro": "CENTRO",
+    "ddd_telefone_2": "", "opcao_pelo_simples": True,
+    "cnaes_secundarios": [{"codigo": 6203100, "descricao": "Desenvolvimento de programas não-customizáveis"}],
+    "qsa": [
+        {"nome_socio": "MARIA DA SILVA", "qualificacao_socio": "Sócio", "faixa_etaria": "Entre 41 a 50 anos",
+         "data_entrada_sociedade": "2021-03-01"},
+        {"nome_socio": "EVERTON LUAN GOMES DA COSTA", "qualificacao_socio": "Sócio-Administrador",
+         "faixa_etaria": "Entre 31 a 40 anos", "data_entrada_sociedade": "2020-01-10"},
+    ],
 }
 FILIAL = dict(MATRIZ, cnpj="11222333000281", identificador_matriz_filial=2)
 GRANDE = dict(MATRIZ, cnpj="11222333000181", codigo_porte=5)
@@ -69,6 +78,21 @@ class TestBusca(unittest.TestCase):
             _comum.ler_filtros({"uf": "SP", "cnae": "62"})
         with self.assertRaises(ValueError):
             _comum.ler_filtros({})
+
+
+class TestExtras(unittest.TestCase):
+    def test_socios_endereco_e_simples(self):
+        e = _comum.resumo_empresa(MATRIZ)["extras"]
+        self.assertEqual(e["socio_administrador"], "Everton Luan Gomes da Costa")
+        self.assertEqual(e["qtd_socios"], 2)
+        self.assertIn("Maria da Silva (Sócio, Entre 41 a 50 anos, desde 2021)", e["socios"])
+        self.assertEqual(e["endereco"], "Avenida Prefeito Osmar Cunha, 416 - Sala 1108")
+        self.assertEqual((e["bairro"], e["simples_nacional"], e["telefone_2"]), ("Centro", "sim", ""))
+        self.assertTrue(e["cnaes_secundarios"].startswith("6203100 "))
+
+    def test_sem_socios(self):
+        e = _comum.extras_receita({"cnpj": "1"})
+        self.assertEqual((e["socio_administrador"], e["qtd_socios"], e["simples_nacional"]), ("", 0, ""))
 
 
 class TestEnriquecer(unittest.TestCase):
