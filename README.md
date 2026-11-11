@@ -98,9 +98,37 @@ python enrich.py data/empresas_exemplo.csv -o saida/empresas_enriquecidas.csv
 
 The CSV can be comma or semicolon separated (Excel in Brazil uses `;`). Free tiers allow only a few requests per minute on some providers, so large lists take time; the cache lets you stop and resume.
 
+## Web app and API (Vercel)
+
+The waterfall also runs as a small web app: `index.html` (paste or upload CNPJs, see the source of each field, download a CSV) on top of a Python serverless API in `api/`. No dependencies, no environment variables.
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/enrich?cnpj=47.960.950/0001-21` | Enriches one CNPJ. Optional: `&obrigatorios=email,telefone`, `&provedores=brasilapi,cnpjws` |
+| `POST /api/enrich` | Body `{"cnpjs": [...], "obrigatorios": [...], "provedores": [...]}`, up to 10 CNPJs per call |
+| `GET /api/info` | Describes the API (health check) |
+
+Response of `GET` (one item of `resultados` in `POST`):
+
+```json
+{
+  "cnpj": "47.960.950/0001-21",
+  "status": "completo",
+  "dados": {"razao_social": "MAGAZINE LUIZA S/A", "email": "...", "dominio": "magazineluiza.com.br", "setor": "Comércio", "...": "..."},
+  "fontes": {"razao_social": "brasilapi", "email": "cnpjws", "setor": "derivado:cnae_principal"},
+  "provedores_consultados": ["brasilapi", "cnpjws"]
+}
+```
+
+`POST` also returns `pendentes` (CNPJs left out when a call gets close to the function's time limit; send them again) and `chamadas` (API calls per provider). CORS is open, so any front-end can call it.
+
+**Deploy:** import this repository in Vercel with the default settings (framework preset "Other"); `vercel.json` sets a 300-second limit for `api/enrich.py`. **Run locally:** `python dev_server.py` and open http://localhost:8000.
+
+Limits to keep in mind: the free APIs allow only a few calls per minute, so send small batches (the page sends 5 at a time) and expect about 20 seconds per company that needs a second provider. The cache lives in `/tmp` and only survives while a function instance is warm. The ICP builder stays a local script: the Receita base (~7 GB) does not fit in a serverless function; to offer it on the web, load the filtered base into a database first.
+
 ## Tests
 
-28 tests run offline: the waterfall on real responses recorded from the four APIs, and the ICP builder on files in the Receita's official layout.
+34 tests run offline: the waterfall on real responses recorded from the four APIs, the ICP builder on files in the Receita's official layout, and the API on a local HTTP server.
 
 ```bash
 python -m unittest discover -s tests
