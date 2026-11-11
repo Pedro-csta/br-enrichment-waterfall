@@ -1,4 +1,4 @@
-"""Servidor local que imita a Vercel: serve o index.html e as funções de /api.
+"""Servidor local que imita a Vercel: serve as páginas e as funções de /api.
 
 Uso:
     python dev_server.py            # http://localhost:8000
@@ -23,6 +23,8 @@ def carregar_funcao(nome):
 FUNCOES = {
     "/api/enrich": carregar_funcao("enrich"),
     "/api/info": carregar_funcao("info"),
+    "/api/buscar": carregar_funcao("buscar"),
+    "/api/enriquecer": carregar_funcao("enriquecer"),
 }
 
 
