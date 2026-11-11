@@ -102,7 +102,7 @@ The CSV can be comma or semicolon separated (Excel in Brazil uses `;`). Free tie
 
 The whole flow also runs as a web app, on a Python serverless API in `api/`. No dependencies, no environment variables.
 
-- `index.html`: from the ICP to the enriched list. Pick UF, city, CNAE, size, age, capital and "exclude MEI"; the page finds the companies in the Receita base through the open search of [Minha Receita](https://docs.minhareceita.org/como-usar/), completes the contacts in the waterfall (CNPJ.ws → CNPJá → ReceitaWS) and downloads the CSV. No file upload.
+- `index.html`: from the ICP to the enriched list. Pick UF, city, CNAE, size, age, capital and "exclude MEI"; the page finds the companies in the Receita base through the open search of [Minha Receita](https://docs.minhareceita.org/como-usar/), adds what the Receita record already has (partners with role, age range and entry year; full address; secondary CNAEs; Simples), completes the contacts in the waterfall (CNPJ.ws → CNPJá → ReceitaWS) and downloads the CSV. No file upload.
 - `lista.html`: already have the CNPJs? Paste or upload them, see the source of each field, download a CSV.
 
 | Route | What it does |
@@ -133,7 +133,7 @@ Limits to keep in mind: the free APIs allow only a few calls per minute, so send
 
 ## Tests
 
-41 tests run offline: the waterfall on real responses recorded from the four APIs, the ICP builder on files in the Receita's official layout, and the API (enrichment, ICP search and web enrichment) on a local HTTP server.
+45 tests run offline: the waterfall on real responses recorded from the four APIs, the ICP builder on files in the Receita's official layout, and the API (enrichment, ICP search and web enrichment) on a local HTTP server.
 
 ```bash
 python -m unittest discover -s tests
