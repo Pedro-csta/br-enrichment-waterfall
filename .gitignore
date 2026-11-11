@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Base da Receita e saídas locais
+dados_receita/
+listas/
+saida/
