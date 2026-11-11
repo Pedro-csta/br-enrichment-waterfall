@@ -93,11 +93,25 @@ class TestEnriquecer(unittest.TestCase):
         self.assertEqual((r["status"], r["provedores_consultados"]), ("parcial", ["minhareceita"]))
 
 
+class TestCidades(unittest.TestCase):
+    def test_ibge_e_reserva_quando_quebrado(self):
+        quebrado = [{"nome": "ORD", "id": 4200051}, {"nome": "ORD", "id": 4200101}, {"nome": "ORD", "id": 4200200}]
+        reserva = [{"nome": "JOINVILLE", "codigo_ibge": "4209102"}, {"nome": "BLUMENAU", "codigo_ibge": "4202404"}]
+        http = lambda url, **k: (200, quebrado) if "ibge.gov.br" in url else (200, reserva)
+        self.assertEqual(_comum.cidades_da_uf("sc", http=http),
+                         [{"nome": "Blumenau", "ibge": "4202404"}, {"nome": "Joinville", "ibge": "4209102"}])
+        self.assertEqual(_comum.cidades_da_uf("x1", http=http), [])
+
+    def test_busca_corta_na_quantidade_pedida(self):
+        f = _comum.ler_filtros({"uf": "SC", "cnae": "6201501", "excluir_mei": "0"})
+        self.assertEqual(len(_comum.buscar(f, quero=1, http=busca_falsa)["empresas"]), 1)
+
+
 class TestRotas(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.originais = (_comum.get_json_com_retry, _comum.enriquecer)
-        cidades = [{"nome": "FLORIANÓPOLIS", "codigo_ibge": 4205407}]
+        cidades = [{"nome": "Florianópolis", "id": 4205407}, {"nome": "Joinville", "id": 4209102}]
         _comum.get_json_com_retry = lambda url, **k: busca_falsa(url) if "minhareceita" in url else (200, cidades)
         original = cls.originais[1]
         _comum.enriquecer = lambda c, **k: original(
@@ -132,7 +146,7 @@ class TestRotas(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(len(corpo["empresas"]), 2)
         status, corpo = self.pedir(self.servidores[0], "/api/buscar?municipios=SC")
-        self.assertEqual(corpo["cidades"], [{"nome": "Florianópolis", "ibge": "4205407"}])
+        self.assertEqual(corpo["cidades"][0], {"nome": "Florianópolis", "ibge": "4205407"})
         self.assertEqual(self.pedir(self.servidores[0], "/api/buscar?uf=SC&cnae=1")[0], 400)
 
     def test_enriquecer(self):
