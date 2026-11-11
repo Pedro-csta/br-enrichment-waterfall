@@ -100,7 +100,7 @@ def parametros(handler):
 # ---------------------------------------------------------------- cidades
 def cidades_da_uf(uf, http=None):
     """Cidades da UF com código IBGE: API oficial do IBGE, com a BrasilAPI de reserva."""
-    http = http or get_json_com_retry
+    http = http or (lambda url: get_json_com_retry(url, tentativas=1, timeout=8.0))
     uf = str(uf or "").strip().upper()[:2]
     if len(uf) != 2 or not uf.isalpha():
         return []
