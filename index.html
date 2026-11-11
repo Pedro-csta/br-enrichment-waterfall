@@ -61,6 +61,13 @@ td small{color:var(--mut)}
 footer{color:var(--mut);font-size:12px;margin-top:28px}
 footer a{color:inherit}
 .vazio{padding:28px;text-align:center;color:var(--mut)}
+tr.lin{cursor:pointer}
+tr.lin:hover td{background:#faf9f7}
+tr.det td{white-space:normal;background:#faf9f7;font-size:12.5px;color:var(--ink);padding:10px 14px 14px}
+.det-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px 22px}
+@media(max-width:820px){.det-grid{grid-template-columns:1fr}}
+.det-grid b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-bottom:3px}
+.det-grid ul{margin:0;padding-left:16px}
 </style>
 </head>
 <body>
@@ -68,7 +75,7 @@ footer a{color:inherit}
 <header>
   <div>
     <h1>BR Enrichment Waterfall <small>beta</small></h1>
-    <p>Descreva o seu ICP. A ferramenta encontra as empresas na base aberta da Receita Federal, completa os contatos em cascata entre APIs públicas e entrega a lista pronta para o CRM. Já tem os CNPJs? <a href="/lista.html">Cole a lista aqui</a>.</p>
+    <p>Descreva o seu ICP. A ferramenta encontra as empresas na base aberta da Receita Federal, traz sócios e dados cadastrais, completa os contatos em cascata entre APIs públicas e entrega a lista pronta para o CRM. Já tem os CNPJs? <a href="/lista.html">Cole a lista aqui</a>.</p>
   </div>
   <div class="passos"><span id="p1" class="on">1 · ICP</span><span id="p2">2 · Busca</span><span id="p3">3 · Enriquecimento</span><span id="p4">4 · Lista</span></div>
 </header>
@@ -137,7 +144,7 @@ footer a{color:inherit}
   <div class="kpis" id="kpis"></div>
   <div class="tabela">
     <table>
-      <thead><tr><th>#</th><th>Empresa</th><th>Cidade</th><th>Porte</th><th>Telefone</th><th>E-mail</th><th>Domínio</th><th>Status</th><th>Fontes</th></tr></thead>
+      <thead><tr><th>#</th><th>Empresa</th><th>Cidade</th><th>Porte</th><th>Telefone</th><th>E-mail</th><th>Domínio</th><th>Sócio-administrador</th><th>Status</th><th>Fontes</th></tr></thead>
       <tbody id="linhas"></tbody>
     </table>
   </div>
@@ -152,6 +159,7 @@ footer a{color:inherit}
 <script>
 const UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ");
 const EXEMPLOS = [["6201501","Software sob encomenda"],["6202300","Software customizável"],["6203100","Software não customizável"],["6204000","Consultoria em TI"],["6311900","Hospedagem e dados"],["7319002","Promoção de vendas"],["7020400","Consultoria em gestão"],["4751201","Varejo de informática"]];
+const EXTRAS = ["socio_administrador","qtd_socios","socios","endereco","bairro","telefone_2","simples_nacional","cnaes_secundarios"];
 const CAMPOS = ["razao_social","nome_fantasia","situacao","data_abertura","porte","natureza_juridica","cnae_principal","cnae_descricao","municipio","uf","cep","telefone","email","capital_social","setor","dominio"];
 const $ = s => document.querySelector(s);
 const st = {rodando:false, parar:false, itens:[], ultimas:{}, chamadas:{}, cache:{}, erros:{}, lidos:0, t0:0};
@@ -200,20 +208,32 @@ const somar = (alvo, origem) => { for (const [k,v] of Object.entries(origem||{})
 // ---------- render
 function linha(it, i){
   const r = it.res?.registro || it.registro || {};
+  const x = it.extras || {};
   const s = it.estado;
   const fontes = it.res ? [...new Set(Object.values(it.res.fontes||{}).filter(f=>!f.startsWith("derivado")))].join(", ") : "";
-  return `<tr id="l${i}"><td>${i+1}</td>
+  const mais = x.qtd_socios > 1 ? ` <small>+${x.qtd_socios-1}</small>` : "";
+  const socios = (x.lista_socios||[]).map(p => `<li>${esc(p.nome)} <small>· ${esc([p.qualificacao, p.faixa_etaria, p.desde && "desde "+p.desde].filter(Boolean).join(" · "))}</small></li>`).join("") || "<li><small>Sem sócios na Receita</small></li>";
+  const capital = r.capital_social != null ? Number(r.capital_social).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}) : "";
+  return `<tr id="l${i}" class="lin" data-i="${i}" title="Clique para ver sócios e mais dados"><td>${i+1}</td>
     <td class="nome">${esc(r.nome_fantasia || r.razao_social || "")}<br><small>${esc(r.nome_fantasia ? r.razao_social : "")} · ${fmtCnpj(it.cnpj)}</small></td>
     <td>${esc(r.municipio||"")}${r.uf?"/"+esc(r.uf):""}</td><td>${esc(r.porte||"")}</td>
     <td>${esc(fone(r.telefone))}</td><td>${esc(r.email||"")}</td><td>${esc(r.dominio||"")}</td>
+    <td>${esc(x.socio_administrador||"")}${mais}</td>
     <td><span class="tag t-${s}">${({fila:"na fila",rodando:"consultando…",completo:"completo",parcial:"parcial",nao_encontrado:"não encontrado",erro:"erro",cnpj_invalido:"CNPJ inválido"})[s]||s}</span></td>
-    <td><small>${esc(fontes)}</small></td></tr>`;
+    <td><small>${esc(fontes)}</small></td></tr>
+    <tr id="d${i}" class="det" hidden><td></td><td colspan="9"><div class="det-grid">
+      <div><b>Sócios (${x.qtd_socios||0})</b><ul>${socios}</ul></div>
+      <div><b>Endereço</b>${esc(x.endereco||"")}${x.bairro?" · "+esc(x.bairro):""}<br>${esc(r.municipio||"")}${r.uf?"/"+esc(r.uf):""} ${r.cep?"· CEP "+esc(r.cep):""}
+        <b style="margin-top:8px">Empresa</b>Aberta em ${esc(r.data_abertura||"?")} · ${esc(r.natureza_juridica||"")}<br>Capital ${esc(capital)} · Simples: ${esc(x.simples_nacional||"?")}${x.telefone_2?"<br>Tel. 2: "+esc(fone(x.telefone_2)):""}</div>
+      <div><b>Atividade</b>${esc(r.cnae_principal||"")} ${esc(r.cnae_descricao||"")}${x.cnaes_secundarios?`<b style="margin-top:8px">Secundárias</b><small>${esc(x.cnaes_secundarios)}</small>`:""}</div>
+    </div></td></tr>`;
 }
 function renderTabela(){
   $("#resultado").hidden = false;
-  $("#linhas").innerHTML = st.itens.length ? st.itens.map(linha).join("") : `<tr><td colspan="9" class="vazio">Nenhuma empresa encontrada com esses filtros.</td></tr>`;
+  $("#linhas").innerHTML = st.itens.length ? st.itens.map(linha).join("") : `<tr><td colspan="10" class="vazio">Nenhuma empresa encontrada com esses filtros.</td></tr>`;
 }
-function atualizarLinha(i){ const tr=$("#l"+i); if(tr) tr.outerHTML = linha(st.itens[i], i); }
+function atualizarLinha(i){ const tr=$("#l"+i), det=$("#d"+i); if(!tr) return; const aberto = det && !det.hidden; if(det) det.remove(); tr.outerHTML = linha(st.itens[i], i); if(aberto) $("#d"+i).hidden = false; }
+$("#linhas").addEventListener("click", e => { const tr = e.target.closest("tr.lin"); if (tr) { const d = $("#d"+tr.dataset.i); if (d) d.hidden = !d.hidden; } });
 function renderKpis(){
   const feitos = st.itens.filter(it => it.res);
   const n = feitos.length;
@@ -250,7 +270,7 @@ async function buscarEmpresas(q, alvo){
     const r = await fetch("/api/buscar?" + p); const j = await r.json();
     if (!r.ok) throw new Error(j.erro || `Erro ${r.status} na busca`);
     st.lidos += j.lidos;
-    for (const e of j.empresas){ if (st.itens.length < alvo && !st.itens.some(x=>x.cnpj===e.cnpj)) st.itens.push({cnpj:e.cnpj, registro:e.registro, estado:"fila"}); }
+    for (const e of j.empresas){ if (st.itens.length < alvo && !st.itens.some(x=>x.cnpj===e.cnpj)) st.itens.push({cnpj:e.cnpj, registro:e.registro, extras:e.extras||{}, estado:"fila"}); }
     status(`Buscando na base da Receita… ${st.lidos.toLocaleString("pt-BR")} registros lidos, ${st.itens.length} no seu ICP.`);
     barra(10 * st.itens.length / alvo);
     cursor = j.cursor; rodadas++;
@@ -293,11 +313,11 @@ $("#parar").addEventListener("click", () => { st.parar = true; $("#parar").disab
 
 // ---------- CSV (mesmas colunas da CLI)
 $("#baixar").addEventListener("click", () => {
-  const cab = ["cnpj_formatado", ...CAMPOS, "status_enriquecimento", "fontes", "provedores_consultados"];
+  const cab = ["cnpj_formatado", ...CAMPOS, ...EXTRAS, "status_enriquecimento", "fontes", "provedores_consultados"];
   const cel = v => { v = v==null ? "" : typeof v==="number" && !Number.isInteger(v) ? v.toFixed(2) : String(v); return /[",\n;]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
   const linhas = st.itens.filter(it=>it.res).map(it => {
     const r = it.res.registro || {};
-    return [it.res.cnpj, ...CAMPOS.map(c => typeof r[c]==="number" && c==="capital_social" ? r[c].toFixed(2) : r[c]), it.res.status,
+    return [it.res.cnpj, ...CAMPOS.map(c => typeof r[c]==="number" && c==="capital_social" ? r[c].toFixed(2) : r[c]), ...EXTRAS.map(c => (it.extras||{})[c]), it.res.status,
       Object.entries(it.res.fontes||{}).map(([k,v])=>`${k}=${v}`).join("; "), (it.res.provedores_consultados||[]).join(" > ")].map(cel).join(",");
   });
   const blob = new Blob(["﻿" + [cab.join(","), ...linhas].join("\n")], {type:"text/csv;charset=utf-8"});
