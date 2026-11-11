@@ -18,7 +18,7 @@ if RAIZ not in sys.path:
     sys.path.insert(0, RAIZ)
 
 import cnpj as cnpj_util  # noqa: E402
-from providers import CAMPOS, PROVEDORES, BrasilAPI  # noqa: E402
+from providers import CAMPOS, PROVEDORES, BrasilAPI, _titulo  # noqa: E402
 from waterfall import (  # noqa: E402
     CAMPOS_OBRIGATORIOS_PADRAO,
     Cascata,
@@ -220,10 +220,69 @@ def url_busca(filtros, cursor=None, limite=200):
     return "https://minhareceita.org/?" + urllib.parse.urlencode(q)
 
 
+def _ano(data_iso):
+    return str(data_iso)[:4] if data_iso else ""
+
+
+def _txt(valor):
+    return " ".join(str(valor or "").split())
+
+
+def extras_receita(bruto):
+    """Dados que já vêm no registro da Receita e não entram na cascata: sócios, endereço etc.
+
+    Nenhuma chamada extra. O CPF dos sócios já vem mascarado da própria Receita.
+    """
+    socios = []
+    for s in bruto.get("qsa") or []:
+        nome = _titulo(_txt(s.get("nome_socio"))) or ""
+        if not nome:
+            continue
+        socios.append({
+            "nome": nome,
+            "qualificacao": _txt(s.get("qualificacao_socio")),
+            "faixa_etaria": _txt(s.get("faixa_etaria")),
+            "desde": _ano(s.get("data_entrada_sociedade")),
+        })
+    admin = next((s for s in socios if "admin" in s["qualificacao"].lower()), socios[0] if socios else None)
+
+    partes = [_titulo(_txt(f"{bruto.get('descricao_tipo_de_logradouro') or ''} {bruto.get('logradouro') or ''}")) or ""]
+    if _txt(bruto.get("numero")):
+        partes.append(_txt(bruto.get("numero")))
+    endereco = ", ".join(p for p in partes if p)
+    if _txt(bruto.get("complemento")):
+        endereco += f" - {_titulo(_txt(bruto.get('complemento')))}"
+
+    secundarios = [
+        f"{c.get('codigo')} {_txt(c.get('descricao'))}".strip()
+        for c in bruto.get("cnaes_secundarios") or [] if c.get("codigo")
+    ]
+    simples = bruto.get("opcao_pelo_simples")
+    return {
+        "socio_administrador": admin["nome"] if admin else "",
+        "qtd_socios": len(socios),
+        "socios": "; ".join(
+            f"{s['nome']} ({', '.join(x for x in (s['qualificacao'], s['faixa_etaria'], 'desde ' + s['desde'] if s['desde'] else '') if x)})"
+            for s in socios
+        ),
+        "endereco": endereco,
+        "bairro": _titulo(_txt(bruto.get("bairro"))) or "",
+        "telefone_2": _telefone_extra(bruto.get("ddd_telefone_2")),
+        "simples_nacional": "" if simples is None else ("sim" if simples else "não"),
+        "cnaes_secundarios": "; ".join(secundarios),
+        "lista_socios": socios,
+    }
+
+
+def _telefone_extra(valor):
+    d = "".join(c for c in str(valor or "") if c.isdigit())
+    return f"+55{d}" if len(d) in (10, 11) else ""
+
+
 def resumo_empresa(bruto):
-    """Registro no esquema comum (CAMPOS) + o CNPJ, para mandar ao navegador."""
+    """Registro no esquema comum (CAMPOS) + o CNPJ + os extras da Receita, para mandar ao navegador."""
     registro = MINHA_RECEITA.converter(bruto) or {}
-    return {"cnpj": cnpj_util.limpar(bruto.get("cnpj")), "registro": registro}
+    return {"cnpj": cnpj_util.limpar(bruto.get("cnpj")), "registro": registro, "extras": extras_receita(bruto)}
 
 
 def buscar(filtros, cursor=None, quero=50, orcamento_s=22.0, limite=200, relogio=time.monotonic,
