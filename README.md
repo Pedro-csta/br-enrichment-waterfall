@@ -100,13 +100,18 @@ The CSV can be comma or semicolon separated (Excel in Brazil uses `;`). Free tie
 
 ## Web app and API (Vercel)
 
-The waterfall also runs as a small web app: `index.html` (paste or upload CNPJs, see the source of each field, download a CSV) on top of a Python serverless API in `api/`. No dependencies, no environment variables.
+The whole flow also runs as a web app, on a Python serverless API in `api/`. No dependencies, no environment variables.
+
+- `index.html`: from the ICP to the enriched list. Pick UF, city, CNAE, size, age, capital and "exclude MEI"; the page finds the companies in the Receita base through the open search of [Minha Receita](https://docs.minhareceita.org/como-usar/), completes the contacts in the waterfall (CNPJ.ws → CNPJá → ReceitaWS) and downloads the CSV. No file upload.
+- `lista.html`: already have the CNPJs? Paste or upload them, see the source of each field, download a CSV.
 
 | Route | What it does |
 | --- | --- |
 | `GET /api/enrich?cnpj=47.960.950/0001-21` | Enriches one CNPJ. Optional: `&obrigatorios=email,telefone`, `&provedores=brasilapi,cnpjws` |
 | `POST /api/enrich` | Body `{"cnpjs": [...], "obrigatorios": [...], "provedores": [...]}`, up to 10 CNPJs per call |
 | `GET /api/info` | Describes the API (health check) |
+| `GET /api/buscar?uf=SC&cnae=6201501&porte=ME,EPP&quero=25` | Step 1 on the web: companies that match the ICP (active head offices by default; also `municipio` (IBGE code), `cnae_secundario`, `excluir_mei`, `idade_min`, `capital_min`, `cursor`) |
+| `POST /api/enriquecer` | Step 2 for one company found by `/api/buscar`: `{"cnpj": "...", "registro": {...}, "ultimas": {...}}`. `ultimas` carries the time of the last call to each provider, so the page respects the free limits across function instances |
 
 Response of `GET` (one item of `resultados` in `POST`):
 
@@ -124,11 +129,11 @@ Response of `GET` (one item of `resultados` in `POST`):
 
 **Deploy:** import this repository in Vercel with the default settings (framework preset "Other"); `vercel.json` sets a 300-second limit for `api/enrich.py`. **Run locally:** `python dev_server.py` and open http://localhost:8000.
 
-Limits to keep in mind: the free APIs allow only a few calls per minute, so send small batches (the page sends 5 at a time) and expect about 20 seconds per company that needs a second provider. The cache lives in `/tmp` and only survives while a function instance is warm. The ICP builder stays a local script: the Receita base (~7 GB) does not fit in a serverless function; to offer it on the web, load the filtered base into a database first.
+Limits to keep in mind: the free APIs allow only a few calls per minute, so send small batches (the page sends 5 at a time) and expect about 20 seconds per company that needs a second provider. The cache lives in `/tmp` and only survives while a function instance is warm. On the web, step 1 uses Minha Receita's search (experimental, it may answer 429) instead of the ~7 GB Receita download, and filters the rest (status, head office, size, MEI, age, capital) in the function; `icp_list.py` stays the way to measure the full TAM locally.
 
 ## Tests
 
-34 tests run offline: the waterfall on real responses recorded from the four APIs, the ICP builder on files in the Receita's official layout, and the API on a local HTTP server.
+41 tests run offline: the waterfall on real responses recorded from the four APIs, the ICP builder on files in the Receita's official layout, and the API (enrichment, ICP search and web enrichment) on a local HTTP server.
 
 ```bash
 python -m unittest discover -s tests
