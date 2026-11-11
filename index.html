@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enriquecimento de CNPJ em cascata</title>
+<style>
+  :root { --tinta: #1a1d21; --suave: #5c6470; --linha: #e3e6ea; --fundo: #f7f8fa; --acento: #2457d6; --ok: #1f8a4c; --alerta: #b7791f; --erro: #c53030; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--tinta); background: var(--fundo); }
+  main { max-width: 1100px; margin: 0 auto; padding: 40px 20px 60px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  p.sub { color: var(--suave); margin: 0 0 28px; max-width: 720px; }
+  .cartao { background: #fff; border: 1px solid var(--linha); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  label { font-weight: 600; display: block; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 140px; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border: 1px solid var(--linha); border-radius: 8px; resize: vertical; }
+  .linha { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .opcoes { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; color: var(--suave); font-size: 14px; }
+  .opcoes label { font-weight: 400; display: inline-flex; gap: 6px; align-items: center; margin: 0; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer; background: var(--acento); color: #fff; }
+  button.secundario { background: #fff; color: var(--tinta); border: 1px solid var(--linha); }
+  button:disabled { opacity: .5; cursor: default; }
+  #progresso { color: var(--suave); font-size: 14px; }
+  .resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .resumo div { background: var(--fundo); border-radius: 8px; padding: 12px; }
+  .resumo b { display: block; font-size: 22px; }
+  .resumo span { color: var(--suave); font-size: 13px; }
+  .tabela { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+  th { color: var(--suave); font-weight: 600; }
+  td.fonte { color: var(--suave); font-size: 12px; white-space: normal; min-width: 180px; }
+  .status { font-weight: 600; }
+  .completo { color: var(--ok); } .parcial { color: var(--alerta); } .nao_encontrado, .cnpj_invalido, .erro { color: var(--erro); }
+  footer { color: var(--suave); font-size: 13px; margin-top: 24px; }
+  a { color: var(--acento); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Enriquecimento de CNPJ em cascata</h1>
+  <p class="sub">Cole uma lista de CNPJs. Cada empresa é consultada primeiro na BrasilAPI e, só se faltar algum dado obrigatório, na CNPJ.ws, CNPJá e ReceitaWS. Você vê de onde veio cada campo e baixa o resultado em CSV.</p>
+
+  <section class="cartao">
+    <label for="entrada">CNPJs (um por linha, com ou sem pontuação)</label>
+    <textarea id="entrada" placeholder="47.960.950/0001-21&#10;71673990000177&#10;191"></textarea>
+    <div class="linha">
+      <input type="file" id="arquivo" accept=".csv,.txt">
+      <span id="contagem" style="color:var(--suave);font-size:14px"></span>
+    </div>
+    <div class="opcoes">
+      <span>Chamar a próxima API se faltar:</span>
+      <label><input type="checkbox" class="obrig" value="email" checked> e-mail</label>
+      <label><input type="checkbox" class="obrig" value="telefone" checked> telefone</label>
+      <label><input type="checkbox" class="obrig" value="cnae_principal" checked> CNAE</label>
+      <label><input type="checkbox" class="obrig" value="nome_fantasia"> nome fantasia</label>
+    </div>
+    <div class="linha">
+      <button id="enriquecer">Enriquecer</button>
+      <button id="baixar" class="secundario" disabled>Baixar CSV</button>
+      <span id="progresso"></span>
+    </div>
+  </section>
+
+  <section class="cartao" id="resultado" hidden>
+    <div class="resumo">
+      <div><b id="r-total">0</b><span>empresas</span></div>
+      <div><b id="r-completo">0</b><span>completas</span></div>
+      <div><b id="r-email">0%</b><span>com e-mail</span></div>
+      <div><b id="r-chamadas">0</b><span>chamadas às APIs</span></div>
+    </div>
+    <div class="tabela"><table>
+      <thead><tr><th>CNPJ</th><th>Status</th><th>Razão social</th><th>Município/UF</th><th>Setor</th><th>Telefone</th><th>E-mail</th><th>Fontes</th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table></div>
+  </section>
+
+  <footer>Dados públicos da Receita Federal via APIs gratuitas, com limite de poucas consultas por minuto: listas grandes levam alguns minutos. E-mail e telefone de pessoas físicas são dados pessoais (LGPD). Código: <a href="https://github.com/Pedro-csta/br-enrichment-waterfall">github.com/Pedro-csta/br-enrichment-waterfall</a></footer>
+</main>
+
+<script>
+const LOTE = 5;           // CNPJs por chamada: cabe no tempo da função mesmo com as esperas entre APIs
+const MAXIMO = 200;       // limite por execução nesta página
+const COLUNAS = ["cnpj", "status", "razao_social", "nome_fantasia", "situacao", "data_abertura", "porte",
+  "natureza_juridica", "cnae_principal", "cnae_descricao", "setor", "municipio", "uf", "cep", "telefone",
+  "email", "dominio", "capital_social", "fontes"];
+let resultados = [], chamadas = 0;
+
+const $ = (id) => document.getElementById(id);
+const lista = () => [...new Set($("entrada").value.split(/[\n;,\t]+/).map(s => s.trim()).filter(s => /\d/.test(s)))];
+
+$("entrada").addEventListener("input", () => { const n = lista().length; $("contagem").textContent = n ? `${n} CNPJs` : ""; });
+
+$("arquivo").addEventListener("change", async (e) => {
+  const texto = await e.target.files[0].text();
+  const linhas = texto.split(/\r?\n/).filter(Boolean);
+  const sep = linhas[0].includes(";") ? ";" : ",";
+  const cab = linhas[0].split(sep).map(c => c.replace(/"/g, "").trim().toLowerCase());
+  let col = cab.findIndex(c => c.includes("cnpj"));
+  const dados = col >= 0 ? linhas.slice(1) : linhas;
+  if (col < 0) col = 0;
+  $("entrada").value = dados.map(l => (l.split(sep)[col] || "").replace(/"/g, "").trim()).filter(Boolean).join("\n");
+  $("entrada").dispatchEvent(new Event("input"));
+});
+
+function linhaTabela(r) {
+  const d = r.dados || {};
+  const fontes = Object.entries(r.fontes || {}).filter(([, v]) => !v.startsWith("derivado"))
+    .reduce((acc, [k, v]) => ((acc[v] = acc[v] || []).push(k), acc), {});
+  const tr = document.createElement("tr");
+  const celulas = [r.cnpj, r.status, d.razao_social, [d.municipio, d.uf].filter(Boolean).join("/"), d.setor, d.telefone, d.email,
+    Object.entries(fontes).map(([p, cs]) => `${p}: ${cs.length} campos`).join(" · ")];
+  celulas.forEach((v, i) => {
+    const td = document.createElement("td");
+    td.textContent = v || "";
+    if (i === 1) td.className = `status ${r.status}`;
+    if (i === 7) td.className = "fonte";
+    tr.appendChild(td);
+  });
+  return tr;
+}
+
+function atualizarResumo() {
+  const n = resultados.length;
+  $("r-total").textContent = n;
+  $("r-completo").textContent = resultados.filter(r => r.status === "completo").length;
+  const comEmail = resultados.filter(r => (r.dados || {}).email).length;
+  $("r-email").textContent = n ? Math.round(100 * comEmail / n) + "%" : "0%";
+  $("r-chamadas").textContent = chamadas;
+}
+
+async function enriquecerLote(cnpjs, obrigatorios) {
+  const resp = await fetch("/api/enrich", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cnpjs, obrigatorios: ["razao_social", "situacao", "municipio", "uf", ...obrigatorios] }),
+  });
+  const corpo = await resp.json();
+  if (!resp.ok) throw new Error(corpo.erro || `HTTP ${resp.status}`);
+  return corpo;
+}
+
+$("enriquecer").addEventListener("click", async () => {
+  let fila = lista();
+  if (!fila.length) { $("progresso").textContent = "Cole pelo menos um CNPJ."; return; }
+  if (fila.length > MAXIMO) { fila = fila.slice(0, MAXIMO); }
+  const obrigatorios = [...document.querySelectorAll(".obrig:checked")].map(c => c.value);
+  resultados = []; chamadas = 0;
+  $("linhas").innerHTML = ""; $("resultado").hidden = false;
+  $("enriquecer").disabled = true; $("baixar").disabled = true;
+  const total = fila.length;
+  while (fila.length) {
+    const lote = fila.splice(0, LOTE);
+    $("progresso").textContent = `Consultando ${total - fila.length - lote.length + 1}–${total - fila.length} de ${total}…`;
+    try {
+      const corpo = await enriquecerLote(lote, obrigatorios);
+      fila.unshift(...corpo.pendentes);
+      Object.values(corpo.chamadas || {}).forEach(n => chamadas += n);
+      corpo.resultados.forEach(r => { resultados.push(r); $("linhas").appendChild(linhaTabela(r)); });
+    } catch (erro) {
+      lote.forEach(c => { const r = { cnpj: c, status: "erro", dados: {}, fontes: {} }; resultados.push(r); $("linhas").appendChild(linhaTabela(r)); });
+      $("progresso").textContent = `Erro: ${erro.message}`;
+    }
+    atualizarResumo();
+  }
+  $("progresso").textContent = `Pronto: ${resultados.length} empresas.` + (lista().length > MAXIMO ? ` (limite de ${MAXIMO} por vez)` : "");
+  $("enriquecer").disabled = false; $("baixar").disabled = !resultados.length;
+});
+
+$("baixar").addEventListener("click", () => {
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const linhas = resultados.map(r => {
+    const d = { ...(r.dados || {}), cnpj: r.cnpj, status: r.status,
+      fontes: Object.entries(r.fontes || {}).map(([k, v]) => `${k}=${v}`).join("; ") };
+    return COLUNAS.map(c => esc(d[c])).join(",");
+  });
+  const blob = new Blob(["﻿" + [COLUNAS.join(","), ...linhas].join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "empresas_enriquecidas.csv" });
+  a.click();
+});
+</script>
+</body>
+</html>
