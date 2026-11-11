@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BR Enrichment Waterfall · beta</title>
+<meta name="description" content="Do ICP à lista enriquecida para o CRM, só com dados públicos da Receita Federal.">
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1c1b19;--mut:#6b6862;--line:#e4e1da;--acc:#0f6b4f;--acc2:#e7f3ee;--warn:#9a5b00;--warn2:#fff4e0;--err:#a3312a;--err2:#fbeceb;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 20px 64px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+h1{font-size:26px;letter-spacing:-.02em;margin:0}
+h1 small{font-size:12px;font-weight:600;color:var(--acc);background:var(--acc2);border-radius:99px;padding:2px 9px;margin-left:8px;vertical-align:middle;letter-spacing:0}
+header p{margin:6px 0 0;color:var(--mut);max-width:640px}
+header p a{color:var(--acc)}
+.passos{display:flex;gap:6px;color:var(--mut);font-size:13px}
+.passos span{border:1px solid var(--line);border-radius:99px;padding:3px 10px;background:var(--card)}
+.passos span.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 16px}
+.c2{grid-column:span 2}.c4{grid-column:span 4}
+@media(max-width:820px){.grid{grid-template-columns:1fr 1fr}.c2,.c4{grid-column:span 2}}
+label{display:block;font-size:12px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+input[type=text],input[type=number],select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid var(--acc2);border-color:var(--acc)}
+.hint{font-size:12px;color:var(--mut);margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font-size:12px;border:1px dashed var(--line);border-radius:99px;padding:2px 9px;cursor:pointer;background:#fff;color:var(--mut)}
+.chip:hover{border-color:var(--acc);color:var(--acc)}
+.checks{display:flex;flex-wrap:wrap;gap:6px 18px;padding-top:4px}
+.checks label{display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:14px;font-weight:400;color:var(--ink);margin:0}
+.acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
+button{font:inherit;font-weight:600;border-radius:8px;padding:9px 16px;border:1px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer}
+button.sec{background:#fff;color:var(--ink);border-color:var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.status{font-size:14px;color:var(--mut)}
+.barra{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin:12px 0 4px}
+.barra i{display:block;height:100%;width:0;background:var(--acc);transition:width .4s}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:820px){.kpis{grid-template-columns:1fr 1fr}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em}
+.kpi span{font-size:13px;color:var(--mut)}
+.kpi em{font-style:normal;font-size:12px;color:var(--acc);font-weight:600}
+.tabela{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#faf9f7;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);z-index:1}
+td.nome{white-space:normal;min-width:220px}
+td small{color:var(--mut)}
+.tag{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:1px 8px}
+.t-completo{background:var(--acc2);color:var(--acc)}
+.t-parcial{background:var(--warn2);color:var(--warn)}
+.t-nao_encontrado,.t-erro,.t-cnpj_invalido{background:var(--err2);color:var(--err)}
+.t-fila{background:#f0eee9;color:var(--mut)}
+.t-rodando{background:#e9eefb;color:#2f4fa8}
+.erro{background:var(--err2);color:var(--err);border-radius:8px;padding:10px 12px;margin-top:12px;display:none}
+.aviso{font-size:13px;color:var(--mut);margin-top:10px}
+footer{color:var(--mut);font-size:12px;margin-top:28px}
+footer a{color:inherit}
+.vazio{padding:28px;text-align:center;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div>
+    <h1>BR Enrichment Waterfall <small>beta</small></h1>
+    <p>Descreva o seu ICP. A ferramenta encontra as empresas na base aberta da Receita Federal, completa os contatos em cascata entre APIs públicas e entrega a lista pronta para o CRM. Já tem os CNPJs? <a href="/lista.html">Cole a lista aqui</a>.</p>
+  </div>
+  <div class="passos"><span id="p1" class="on">1 · ICP</span><span id="p2">2 · Busca</span><span id="p3">3 · Enriquecimento</span><span id="p4">4 · Lista</span></div>
+</header>
+
+<form id="form" class="card" autocomplete="off">
+  <div class="grid">
+    <div>
+      <label for="uf">Estado (UF)</label>
+      <select id="uf" name="uf" required></select>
+    </div>
+    <div>
+      <label for="municipio">Cidade</label>
+      <select id="municipio" name="municipio"><option value="">Todas as cidades</option></select>
+    </div>
+    <div class="c2">
+      <label for="cnae">CNAE (subclasse, 7 dígitos)</label>
+      <input type="text" id="cnae" name="cnae" placeholder="ex.: 6201501, 6204000" required>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="c2">
+      <label>Porte</label>
+      <div class="checks">
+        <label><input type="checkbox" name="porte" value="ME" checked> Micro (ME)</label>
+        <label><input type="checkbox" name="porte" value="EPP" checked> Pequena (EPP)</label>
+        <label><input type="checkbox" name="porte" value="DEMAIS" checked> Média/grande (Demais)</label>
+      </div>
+    </div>
+    <div>
+      <label for="idade_min">Idade mínima (anos)</label>
+      <input type="number" id="idade_min" name="idade_min" min="0" max="100" placeholder="ex.: 2">
+    </div>
+    <div>
+      <label for="capital_min">Capital mínimo (R$)</label>
+      <input type="number" id="capital_min" name="capital_min" min="0" step="1000" placeholder="ex.: 100000">
+    </div>
+    <div class="c4">
+      <div class="checks">
+        <label><input type="checkbox" name="excluir_mei" checked> Excluir MEI</label>
+        <label><input type="checkbox" name="cnae_secundario"> Incluir quem tem o CNAE como atividade secundária</label>
+        <label><input type="checkbox" name="so_com_contato"> Só empresas com telefone ou e-mail na Receita</label>
+        <label><input type="checkbox" id="enriquecer" checked> Completar contatos nas outras APIs (mais lento)</label>
+      </div>
+    </div>
+    <div>
+      <label for="alvo">Quantas empresas</label>
+      <select id="alvo">
+        <option>10</option><option selected>25</option><option>50</option><option>100</option>
+      </select>
+    </div>
+    <div class="c2" style="align-self:end">
+      <div class="hint" id="estimativa"></div>
+    </div>
+  </div>
+  <div class="acoes">
+    <button type="submit" id="iniciar">Buscar e enriquecer</button>
+    <button type="button" class="sec" id="parar" disabled>Parar</button>
+    <button type="button" class="sec" id="baixar" disabled>Baixar CSV</button>
+    <span class="status" id="status"></span>
+  </div>
+  <div class="barra"><i id="progresso"></i></div>
+  <div class="erro" id="erro"></div>
+  <p class="aviso">Mantenha esta aba aberta enquanto roda. As APIs gratuitas aceitam poucas consultas por minuto, então cada empresa que precisa de contato extra leva cerca de 20 segundos.</p>
+</form>
+
+<section id="resultado" hidden>
+  <div class="kpis" id="kpis"></div>
+  <div class="tabela">
+    <table>
+      <thead><tr><th>#</th><th>Empresa</th><th>Cidade</th><th>Porte</th><th>Telefone</th><th>E-mail</th><th>Domínio</th><th>Status</th><th>Fontes</th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Dados públicos da Receita Federal via <a href="https://minhareceita.org" target="_blank" rel="noopener">Minha Receita</a>, CNPJ.ws, CNPJá e ReceitaWS.
+  Código aberto: <a href="https://github.com/Pedro-csta/br-enrichment-waterfall" target="_blank" rel="noopener">br-enrichment-waterfall</a>.
+</footer>
+</main>
+
+<script>
+const UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ");
+const EXEMPLOS = [["6201501","Software sob encomenda"],["6202300","Software customizável"],["6203100","Software não customizável"],["6204000","Consultoria em TI"],["6311900","Hospedagem e dados"],["7319002","Promoção de vendas"],["7020400","Consultoria em gestão"],["4751201","Varejo de informática"]];
+const CAMPOS = ["razao_social","nome_fantasia","situacao","data_abertura","porte","natureza_juridica","cnae_principal","cnae_descricao","municipio","uf","cep","telefone","email","capital_social","setor","dominio"];
+const $ = s => document.querySelector(s);
+const st = {rodando:false, parar:false, itens:[], ultimas:{}, chamadas:{}, cache:{}, erros:{}, lidos:0, t0:0};
+
+// ---------- formulário
+$("#uf").innerHTML = UFS.map(u => `<option ${u==="SP"?"selected":""}>${u}</option>`).join("");
+$("#chips").innerHTML = EXEMPLOS.map(([c,n]) => `<span class="chip" data-c="${c}" title="${c}">${n}</span>`).join("");
+$("#chips").addEventListener("click", e => {
+  const c = e.target.dataset.c; if (!c) return;
+  const atual = $("#cnae").value.split(",").map(s=>s.trim()).filter(Boolean);
+  if (!atual.includes(c)) atual.push(c);
+  $("#cnae").value = atual.join(", ");
+});
+async function carregarCidades(){
+  const sel = $("#municipio"); sel.innerHTML = '<option value="">Carregando…</option>';
+  try{
+    const r = await fetch(`/api/buscar?municipios=${$("#uf").value}`); const j = await r.json();
+    sel.innerHTML = '<option value="">Todas as cidades</option>' + (j.cidades||[]).map(c=>`<option value="${c.ibge}">${esc(c.nome)}</option>`).join("");
+  }catch(e){ sel.innerHTML = '<option value="">Todas as cidades</option>'; }
+}
+$("#uf").addEventListener("change", carregarCidades); carregarCidades();
+function estimar(){
+  const n = +$("#alvo").value, enr = $("#enriquecer").checked;
+  $("#estimativa").textContent = enr ? `Estimativa: até ~${Math.ceil(n*22/60)} min para ${n} empresas (menos se a Receita já tiver os contatos).` : `Estimativa: menos de 1 min (só dados da Receita).`;
+}
+$("#alvo").addEventListener("change", estimar); $("#enriquecer").addEventListener("change", estimar); estimar();
+
+// ---------- utilidades
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtCnpj(c){ c=String(c).padStart(14,"0"); return `${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}`; }
+function fone(t){ if(!t) return ""; const d=t.replace("+55",""); return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; }
+function erro(msg){ const e=$("#erro"); e.textContent=msg||""; e.style.display=msg?"block":"none"; }
+function passo(n){ for(let i=1;i<=4;i++) $("#p"+i).classList.toggle("on", i===n); }
+function status(t){ $("#status").textContent=t; }
+function barra(p){ $("#progresso").style.width = Math.max(0,Math.min(100,p))+"%"; }
+const pct = (a,b) => b ? Math.round(100*a/b) : 0;
+const somar = (alvo, origem) => { for (const [k,v] of Object.entries(origem||{})) alvo[k]=(alvo[k]||0)+v; };
+
+// ---------- render
+function linha(it, i){
+  const r = it.res?.registro || it.registro || {};
+  const s = it.estado;
+  const fontes = it.res ? [...new Set(Object.values(it.res.fontes||{}).filter(f=>!f.startsWith("derivado")))].join(", ") : "";
+  return `<tr id="l${i}"><td>${i+1}</td>
+    <td class="nome">${esc(r.nome_fantasia || r.razao_social || "")}<br><small>${esc(r.nome_fantasia ? r.razao_social : "")} · ${fmtCnpj(it.cnpj)}</small></td>
+    <td>${esc(r.municipio||"")}${r.uf?"/"+esc(r.uf):""}</td><td>${esc(r.porte||"")}</td>
+    <td>${esc(fone(r.telefone))}</td><td>${esc(r.email||"")}</td><td>${esc(r.dominio||"")}</td>
+    <td><span class="tag t-${s}">${({fila:"na fila",rodando:"consultando…",completo:"completo",parcial:"parcial",nao_encontrado:"não encontrado",erro:"erro",cnpj_invalido:"CNPJ inválido"})[s]||s}</span></td>
+    <td><small>${esc(fontes)}</small></td></tr>`;
+}
+function renderTabela(){
+  $("#resultado").hidden = false;
+  $("#linhas").innerHTML = st.itens.length ? st.itens.map(linha).join("") : `<tr><td colspan="9" class="vazio">Nenhuma empresa encontrada com esses filtros.</td></tr>`;
+}
+function atualizarLinha(i){ const tr=$("#l"+i); if(tr) tr.outerHTML = linha(st.itens[i], i); }
+function renderKpis(){
+  const feitos = st.itens.filter(it => it.res);
+  const n = feitos.length;
+  const antes = c => feitos.filter(it => it.res.registro_primeiro_provedor?.[c]).length;
+  const depois = c => feitos.filter(it => it.res.registro?.[c]).length;
+  const completos = feitos.filter(it => it.res.status==="completo").length;
+  const totalCham = Object.values(st.chamadas).reduce((a,b)=>a+b,0);
+  $("#kpis").innerHTML = `
+    <div class="kpi"><b>${st.itens.length}</b><span>empresas no ICP · ${st.lidos.toLocaleString("pt-BR")} lidas na base</span></div>
+    <div class="kpi"><b>${pct(depois("email"),n)}%</b><span>com e-mail</span> <em>${pct(antes("email"),n)}% só com a Receita</em></div>
+    <div class="kpi"><b>${pct(depois("telefone"),n)}%</b><span>com telefone</span> <em>${pct(antes("telefone"),n)}% só com a Receita</em></div>
+    <div class="kpi"><b>${pct(completos,n)}%</b><span>completas · ${totalCham} chamadas extras</span></div>`;
+}
+
+// ---------- fluxo
+function lerForm(){
+  const f = new FormData($("#form")), q = new URLSearchParams();
+  q.set("uf", f.get("uf"));
+  if (f.get("municipio")) q.set("municipio", f.get("municipio"));
+  q.set("cnae", f.get("cnae"));
+  q.set("porte", f.getAll("porte").join(","));
+  q.set("excluir_mei", f.get("excluir_mei") ? "1" : "0");
+  if (f.get("cnae_secundario")) q.set("cnae_secundario","1");
+  if (f.get("so_com_contato")) q.set("so_com_contato","1");
+  if (f.get("idade_min")) q.set("idade_min", f.get("idade_min"));
+  if (f.get("capital_min")) q.set("capital_min", f.get("capital_min"));
+  return q;
+}
+async function buscarEmpresas(q, alvo){
+  let cursor = null, rodadas = 0;
+  const maxLidos = 60000;
+  while (st.itens.length < alvo && !st.parar){
+    const p = new URLSearchParams(q); p.set("quero", alvo - st.itens.length); if (cursor) p.set("cursor", cursor);
+    const r = await fetch("/api/buscar?" + p); const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || `Erro ${r.status} na busca`);
+    st.lidos += j.lidos;
+    for (const e of j.empresas){ if (st.itens.length < alvo && !st.itens.some(x=>x.cnpj===e.cnpj)) st.itens.push({cnpj:e.cnpj, registro:e.registro, estado:"fila"}); }
+    status(`Buscando na base da Receita… ${st.lidos.toLocaleString("pt-BR")} registros lidos, ${st.itens.length} no seu ICP.`);
+    barra(10 * st.itens.length / alvo);
+    cursor = j.cursor; rodadas++;
+    if (j.fim || !cursor) break;
+    if (st.lidos >= maxLidos){ status(`Parei a busca após ${st.lidos.toLocaleString("pt-BR")} registros. Tente filtros menos restritos ou escolha uma cidade.`); break; }
+  }
+}
+async function enriquecerTodos(consultarOutros){
+  const t0 = Date.now(); let feitos = 0;
+  for (let i=0; i<st.itens.length && !st.parar; i++){
+    const it = st.itens[i]; it.estado = "rodando"; atualizarLinha(i);
+    try{
+      const r = await fetch("/api/enriquecer", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({cnpj: it.cnpj, registro: it.registro, ultimas: st.ultimas, consultar_outros: consultarOutros})});
+      const j = await r.json(); if (!r.ok) throw new Error(j.erro || r.status);
+      it.res = j; it.estado = j.status; st.ultimas = j.ultimas || st.ultimas;
+      somar(st.chamadas, j.chamadas); somar(st.cache, j.cache); somar(st.erros, j.erros);
+    }catch(e){ it.estado = "erro"; it.falha = String(e.message||e); }
+    feitos++; atualizarLinha(i); renderKpis();
+    const media = (Date.now()-t0)/feitos, resta = Math.round(media*(st.itens.length-feitos)/1000);
+    status(`Enriquecendo ${feitos} de ${st.itens.length}${resta>0 ? ` · faltam ~${resta>90?Math.ceil(resta/60)+" min":resta+" s"}` : ""}`);
+    barra(10 + 90*feitos/st.itens.length);
+  }
+}
+$("#form").addEventListener("submit", async ev => {
+  ev.preventDefault(); if (st.rodando) return;
+  erro(""); Object.assign(st, {rodando:true, parar:false, itens:[], ultimas:{}, chamadas:{}, cache:{}, erros:{}, lidos:0});
+  $("#iniciar").disabled = true; $("#parar").disabled = false; $("#baixar").disabled = true; barra(0);
+  try{
+    passo(2); await buscarEmpresas(lerForm(), +$("#alvo").value);
+    renderTabela(); renderKpis();
+    if (st.itens.length){ passo(3); await enriquecerTodos($("#enriquecer").checked); }
+    passo(4);
+    status(st.parar ? "Interrompido. Você pode baixar o que já foi processado." : st.itens.length ? `Pronto: ${st.itens.length} empresas.` : "Nenhuma empresa encontrada. Afrouxe os filtros.");
+  }catch(e){ erro(e.message || String(e)); status(""); passo(1); }
+  st.rodando = false; $("#iniciar").disabled = false; $("#parar").disabled = true;
+  $("#baixar").disabled = !st.itens.some(it => it.res); barra(st.itens.length ? 100 : 0);
+});
+$("#parar").addEventListener("click", () => { st.parar = true; $("#parar").disabled = true; status("Parando depois da empresa atual…"); });
+
+// ---------- CSV (mesmas colunas da CLI)
+$("#baixar").addEventListener("click", () => {
+  const cab = ["cnpj_formatado", ...CAMPOS, "status_enriquecimento", "fontes", "provedores_consultados"];
+  const cel = v => { v = v==null ? "" : typeof v==="number" && !Number.isInteger(v) ? v.toFixed(2) : String(v); return /[",\n;]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+  const linhas = st.itens.filter(it=>it.res).map(it => {
+    const r = it.res.registro || {};
+    return [it.res.cnpj, ...CAMPOS.map(c => typeof r[c]==="number" && c==="capital_social" ? r[c].toFixed(2) : r[c]), it.res.status,
+      Object.entries(it.res.fontes||{}).map(([k,v])=>`${k}=${v}`).join("; "), (it.res.provedores_consultados||[]).join(" > ")].map(cel).join(",");
+  });
+  const blob = new Blob(["﻿" + [cab.join(","), ...linhas].join("\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `empresas_enriquecidas_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
