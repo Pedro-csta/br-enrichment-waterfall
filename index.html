@@ -166,11 +166,18 @@ $("#chips").addEventListener("click", e => {
   $("#cnae").value = atual.join(", ");
 });
 async function carregarCidades(){
-  const sel = $("#municipio"); sel.innerHTML = '<option value="">Carregando…</option>';
-  try{
-    const r = await fetch(`/api/buscar?municipios=${$("#uf").value}`); const j = await r.json();
-    sel.innerHTML = '<option value="">Todas as cidades</option>' + (j.cidades||[]).map(c=>`<option value="${c.ibge}">${esc(c.nome)}</option>`).join("");
-  }catch(e){ sel.innerHTML = '<option value="">Todas as cidades</option>'; }
+  const sel = $("#municipio"), uf = $("#uf").value; sel.innerHTML = '<option value="">Carregando…</option>';
+  let cidades = [];
+  try{  // direto no IBGE (responde rápido no Brasil); o servidor fica de reserva
+    const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`);
+    if (r.ok) cidades = (await r.json()).map(c => ({nome: c.nome, ibge: String(c.id)}));
+  }catch(e){}
+  if (!cidades.length){
+    try{ const r = await fetch(`/api/buscar?municipios=${uf}`); cidades = (await r.json()).cidades || []; }catch(e){}
+  }
+  if ($("#uf").value !== uf) return;
+  cidades.sort((a,b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  sel.innerHTML = '<option value="">Todas as cidades</option>' + cidades.map(c=>`<option value="${esc(c.ibge)}">${esc(c.nome)}</option>`).join("");
 }
 $("#uf").addEventListener("change", carregarCidades); carregarCidades();
 function estimar(){
